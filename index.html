@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Smart ID Card Detection System</title>
+  <title>Smart ID Card Detection System (Demo)</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
   <style>
@@ -80,7 +80,7 @@
   </style>
 </head>
 <body>
-  <h1>Smart ID Card Detection System</h1>
+  <h1>Smart ID Card Detection System (Demo)</h1>
   <button id="startBtn">Start System</button>
   <br>
   <video id="webcam" autoplay playsinline muted></video>
@@ -107,7 +107,8 @@
     const startBtn = document.getElementById('startBtn');
     const logTable = document.getElementById('logTable').querySelector('tbody');
 
-    // 🔗 Replace with your Teachable Machine model URL
+    // ⚠️ This is a dummy simulation model – replace this with your real TM model later
+    const useSimulation = true; // change to false after you have your model
     const modelURL = "https://teachablemachine.withgoogle.com/models/abcd1234/";
     const modelJSON = modelURL + "model.json";
     const modelMetadata = modelURL + "metadata.json";
@@ -120,15 +121,18 @@
 
     async function initSystem() {
       try {
-        statusText.innerText = "Loading model...";
-        model = await tmImage.load(modelJSON, modelMetadata);
         statusText.innerText = "Starting webcam...";
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         video.srcObject = stream;
         webcamStream = stream;
         video.play();
         statusText.innerText = "System Running - Detecting...";
-        detectLoop();
+        if (useSimulation) simulateDetections();
+        else {
+          statusText.innerText = "Loading model...";
+          model = await tmImage.load(modelJSON, modelMetadata);
+          detectLoop();
+        }
       } catch (err) {
         statusText.innerText = "Error: " + err.message;
       }
@@ -145,6 +149,34 @@
       if (logTable.rows.length > 50) logTable.deleteRow(50);
     }
 
+    // --- DEMO SIMULATION LOOP (randomly toggles states every few seconds) ---
+    async function simulateDetections() {
+      const states = ["withID", "withoutID"];
+      setInterval(() => {
+        const state = states[Math.floor(Math.random() * states.length)];
+        if (state === "withID") {
+          indicator.style.background = "green";
+          indicator.style.boxShadow = "0 0 60px green";
+          statusText.innerText = "✅ Person with ID Card";
+          if (lastState !== "withID") {
+            logEvent("With ID Card");
+            lastState = "withID";
+          }
+        } else {
+          indicator.style.background = "red";
+          indicator.style.boxShadow = "0 0 60px red";
+          statusText.innerText = "❌ Person without ID Card";
+          if (lastState !== "withoutID") {
+            buzzer.currentTime = 0;
+            buzzer.play();
+            logEvent("Without ID Card");
+            lastState = "withoutID";
+          }
+        }
+      }, 4000); // every 4 seconds
+    }
+
+    // --- REAL DETECTION LOOP (active when you train your model) ---
     async function detectLoop() {
       if (!model) return;
       const predictions = await model.predict(video);
@@ -174,7 +206,6 @@
         indicator.style.boxShadow = "0 0 40px #000";
         statusText.innerText = "Analyzing...";
       }
-
       requestAnimationFrame(detectLoop);
     }
   </script>
