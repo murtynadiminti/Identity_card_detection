@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ID Card Detection System</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <style>
+    body {
+      background-color: #111;
+      color: white;
+      font-family: Arial;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    video {
+      border: 4px solid white;
+      border-radius: 10px;
+      width: 70%;
+      margin-top: 20px;
+    }
+    #indicator {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      margin: 30px auto;
+      background-color: grey;
+      box-shadow: 0 0 40px #000;
+    }
+    #status {
+      font-size: 1.5em;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Webcam Based ID Card Detection</h2>
+  <video id="webcam" autoplay playsinline></video>
+  <div id="indicator"></div>
+  <p id="status">Initializing...</p>
+  <audio id="buzzer" src="https://www.soundjay.com/button/beep-07.wav"></audio>
+
+  <script>
+    const video = document.getElementById('webcam');
+    const indicator = document.getElementById('indicator');
+    const statusText = document.getElementById('status');
+    const buzzer = document.getElementById('buzzer');
+    let model;
+
+    async function init() {
+      try {
+        // Load webcam
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        statusText.innerText = "Loading Model...";
+        
+        // Load object detection model
+        model = await cocoSsd.load();
+        statusText.innerText = "Model Loaded. Detecting...";
+        
+        detectObjects();
+      } catch (err) {
+        statusText.innerText = "Webcam Access Denied or Error: " + err.message;
+      }
+    }
+
+    async function detectObjects() {
+      const predictions = await model.detect(video);
+
+      let personDetected = predictions.some(p => p.class === 'person' && p.score > 0.6);
+      // Simulate ID card detection by checking for 'cell phone' or 'book'
+      let idDetected = predictions.some(p => ['cell phone', 'book'].includes(p.class) && p.score > 0.5);
+
+      if (personDetected && idDetected) {
+        // ✅ Person with ID card
+        indicator.style.backgroundColor = 'green';
+        indicator.style.boxShadow = '0 0 60px green';
+        statusText.innerText = "Person with ID Card ✅";
+      } else if (personDetected && !idDetected) {
+        // ❌ Person without ID card
+        indicator.style.backgroundColor = 'red';
+        indicator.style.boxShadow = '0 0 60px red';
+        statusText.innerText = "Person without ID Card ❌";
+        buzzer.play();
+      } else {
+        indicator.style.backgroundColor = 'grey';
+        indicator.style.boxShadow = '0 0 40px #000';
+        statusText.innerText = "No Person Detected";
+      }
+
+      requestAnimationFrame(detectObjects);
+    }
+
+    init();
+  </script>
+</body>
+</html>
