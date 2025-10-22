@@ -1,213 +1,117 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Smart ID Card Detection System (Demo)</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
-  <style>
-    body {
-      background-color: #0e0e0e;
-      color: #fff;
-      text-align: center;
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-    }
-    h1 {
-      margin-top: 20px;
-      color: #00e0ff;
-      letter-spacing: 1px;
-    }
-    video {
-      border: 4px solid #fff;
-      border-radius: 12px;
-      width: 70%;
-      margin-top: 20px;
-      box-shadow: 0 0 30px rgba(255,255,255,0.2);
-    }
-    #indicator {
-      width: 160px;
-      height: 160px;
-      border-radius: 50%;
-      background: grey;
-      margin: 30px auto;
-      box-shadow: 0 0 40px #000;
-    }
-    #status {
-      font-size: 1.4em;
-      margin-top: 15px;
-      color: #ccc;
-    }
-    button {
-      margin-top: 20px;
-      background: linear-gradient(45deg, #00bcd4, #008cff);
-      border: none;
-      color: white;
-      font-size: 18px;
-      padding: 12px 30px;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-    button:hover {
-      background: linear-gradient(45deg, #00d4b4, #007aff);
-    }
-    table {
-      width: 70%;
-      margin: 30px auto;
-      border-collapse: collapse;
-      background: #1c1c1c;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 0 20px rgba(255,255,255,0.1);
-    }
-    th, td {
-      padding: 10px;
-      border-bottom: 1px solid #333;
-    }
-    th {
-      background: #00bcd4;
-      color: #fff;
-      text-transform: uppercase;
-    }
-    tr:nth-child(even) {
-      background: #151515;
-    }
-    tr:hover {
-      background: #222;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>ID Card Detection with Person Check</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+<style>
+body { background: #0e0e0e; color: #fff; text-align:center; font-family:Arial,sans-serif; margin:0; padding:0;}
+h1 { margin-top:20px; color:#00e0ff; letter-spacing:1px;}
+video { border:4px solid #fff; border-radius:12px; width:70%; margin-top:20px; box-shadow:0 0 30px rgba(255,255,255,0.2);}
+#indicator { width:160px; height:160px; border-radius:50%; background:grey; margin:30px auto; box-shadow:0 0 40px #000;}
+#status { font-size:1.4em; margin-top:15px; color:#ccc;}
+button { margin-top:20px; background:linear-gradient(45deg,#00bcd4,#008cff); border:none; color:white; font-size:18px; padding:12px 30px; border-radius:10px; cursor:pointer; transition:0.3s;}
+button:hover { background:linear-gradient(45deg,#00d4b4,#007aff);}
+table { width:70%; margin:30px auto; border-collapse:collapse; background:#1c1c1c; border-radius:8px; overflow:hidden; box-shadow:0 0 20px rgba(255,255,255,0.1);}
+th, td { padding:10px; border-bottom:1px solid #333;}
+th { background:#00bcd4; color:#fff; text-transform:uppercase;}
+tr:nth-child(even){ background:#151515;}
+tr:hover{ background:#222;}
+</style>
 </head>
 <body>
-  <h1>Smart ID Card Detection System (Demo)</h1>
-  <button id="startBtn">Start System</button>
-  <br>
-  <video id="webcam" autoplay playsinline muted></video>
-  <div id="indicator"></div>
-  <p id="status">Click "Start System" to begin</p>
-  <audio id="buzzer" src="https://www.soundjay.com/button/beep-07.wav"></audio>
+<h1>ID Card Detection with Person Check</h1>
+<button id="startBtn">Start System</button>
+<br>
+<video id="webcam" autoplay playsinline muted></video>
+<div id="indicator"></div>
+<p id="status">Click "Start System" to begin</p>
+<audio id="buzzer" src="https://www.soundjay.com/button/beep-07.wav"></audio>
+<table id="logTable">
+<thead>
+<tr><th>Timestamp</th><th>Detection Result</th></tr>
+</thead>
+<tbody></tbody>
+</table>
 
-  <table id="logTable">
-    <thead>
-      <tr>
-        <th>Timestamp</th>
-        <th>Detection Result</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+<script>
+let cocoModel, idModel, webcamStream, lastState="";
+const video=document.getElementById("webcam");
+const indicator=document.getElementById("indicator");
+const statusText=document.getElementById("status");
+const buzzer=document.getElementById("buzzer");
+const startBtn=document.getElementById("startBtn");
+const logTable=document.getElementById("logTable").querySelector("tbody");
 
-  <script>
-    let model, webcamStream, lastState = "";
-    const video = document.getElementById('webcam');
-    const indicator = document.getElementById('indicator');
-    const statusText = document.getElementById('status');
-    const buzzer = document.getElementById('buzzer');
-    const startBtn = document.getElementById('startBtn');
-    const logTable = document.getElementById('logTable').querySelector('tbody');
+// Replace with your trained Teachable Machine model URL
+const modelURL="https://teachablemachine.withgoogle.com/models/YourModelID/";
+const modelJSON=modelURL+"model.json";
+const modelMetadata=modelURL+"metadata.json";
 
-    // ⚠️ This is a dummy simulation model – replace this with your real TM model later
-    const useSimulation = true; // change to false after you have your model
-    const modelURL = "https://teachablemachine.withgoogle.com/models/BT9eenR3E/";
-    const modelJSON = modelURL + "model.json";
-    const modelMetadata = modelURL + "metadata.json";
+startBtn.addEventListener("click", async()=>{
+    startBtn.disabled=true; startBtn.innerText="Starting...";
+    await initSystem();
+});
 
-    startBtn.addEventListener("click", async () => {
-      startBtn.disabled = true;
-      startBtn.innerText = "Starting...";
-      await initSystem();
-    });
-
-    async function initSystem() {
-      try {
-        statusText.innerText = "Starting webcam...";
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
-        webcamStream = stream;
-        video.play();
-        statusText.innerText = "System Running - Detecting...";
-        if (useSimulation) simulateDetections();
-        else {
-          statusText.innerText = "Loading model...";
-          model = await tmImage.load(modelJSON, modelMetadata);
-          detectLoop();
-        }
-      } catch (err) {
-        statusText.innerText = "Error: " + err.message;
-      }
+async function initSystem(){
+    try{
+        statusText.innerText="Loading person detection model...";
+        cocoModel=await cocoSsd.load();
+        statusText.innerText="Loading ID card classification model...";
+        idModel=await tmImage.load(modelJSON, modelMetadata);
+        const stream=await navigator.mediaDevices.getUserMedia({video:true});
+        video.srcObject=stream; webcamStream=stream; video.play();
+        statusText.innerText="System Running - Detecting...";
+        detectLoop();
+    }catch(err){
+        statusText.innerText="Error: "+err.message;
     }
+}
 
-    function logEvent(resultText) {
-      const now = new Date();
-      const timestamp = now.toLocaleTimeString();
-      const row = logTable.insertRow(0);
-      const cell1 = row.insertCell(0);
-      const cell2 = row.insertCell(1);
-      cell1.textContent = timestamp;
-      cell2.textContent = resultText;
-      if (logTable.rows.length > 50) logTable.deleteRow(50);
-    }
+function logEvent(resultText){
+    const now=new Date();
+    const timestamp=now.toLocaleTimeString();
+    const row=logTable.insertRow(0);
+    row.insertCell(0).textContent=timestamp;
+    row.insertCell(1).textContent=resultText;
+    if(logTable.rows.length>50) logTable.deleteRow(50);
+}
 
-    // --- DEMO SIMULATION LOOP (randomly toggles states every few seconds) ---
-    async function simulateDetections() {
-      const states = ["withID", "withoutID"];
-      setInterval(() => {
-        const state = states[Math.floor(Math.random() * states.length)];
-        if (state === "withID") {
-          indicator.style.background = "green";
-          indicator.style.boxShadow = "0 0 60px green";
-          statusText.innerText = "✅ Person with ID Card";
-          if (lastState !== "withID") {
-            logEvent("With ID Card");
-            lastState = "withID";
-          }
-        } else {
-          indicator.style.background = "red";
-          indicator.style.boxShadow = "0 0 60px red";
-          statusText.innerText = "❌ Person without ID Card";
-          if (lastState !== "withoutID") {
-            buzzer.currentTime = 0;
-            buzzer.play();
-            logEvent("Without ID Card");
-            lastState = "withoutID";
-          }
+async function detectLoop(){
+    const predictions=await cocoModel.detect(video);
+    const person=predictions.find(p=>p.class==="person" && p.score>0.5);
+
+    if(person){
+        // Crop person area
+        const canvas=document.createElement("canvas");
+        canvas.width=person.bbox[2]; canvas.height=person.bbox[3];
+        const ctx=canvas.getContext("2d");
+        ctx.drawImage(video, person.bbox[0], person.bbox[1], person.bbox[2], person.bbox[3], 0, 0, person.bbox[2], person.bbox[3]);
+
+        // Predict with ID model
+        const prediction=await idModel.predict(canvas);
+        const withID=prediction.find(p=>p.className.toLowerCase().includes("with") && p.probability>0.8);
+        const withoutID=prediction.find(p=>p.className.toLowerCase().includes("without") && p.probability>0.8);
+
+        if(withID){
+            indicator.style.background="green"; indicator.style.boxShadow="0 0 60px green";
+            statusText.innerText="✅ Person with ID Card";
+            if(lastState!=="withID"){ logEvent("With ID Card"); lastState="withID";}
+        } else if(withoutID){
+            indicator.style.background="red"; indicator.style.boxShadow="0 0 60px red";
+            statusText.innerText="❌ Person without ID Card";
+            if(lastState!=="withoutID"){ buzzer.currentTime=0; buzzer.play(); logEvent("Without ID Card"); lastState="withoutID";}
+        } else{
+            indicator.style.background="grey"; indicator.style.boxShadow="0 0 40px #000"; statusText.innerText="Analyzing...";
         }
-      }, 4000); // every 4 seconds
+    } else{
+        indicator.style.background="grey"; indicator.style.boxShadow="0 0 40px #000"; statusText.innerText="No person detected";
+        lastState="";
     }
-
-    // --- REAL DETECTION LOOP (active when you train your model) ---
-    async function detectLoop() {
-      if (!model) return;
-      const predictions = await model.predict(video);
-      const withID = predictions.find(p => p.className.toLowerCase().includes("with") && p.probability > 0.8);
-      const withoutID = predictions.find(p => p.className.toLowerCase().includes("without") && p.probability > 0.8);
-
-      if (withID) {
-        indicator.style.background = "green";
-        indicator.style.boxShadow = "0 0 60px green";
-        statusText.innerText = "✅ Person with ID Card";
-        if (lastState !== "withID") {
-          logEvent("With ID Card");
-          lastState = "withID";
-        }
-      } else if (withoutID) {
-        indicator.style.background = "red";
-        indicator.style.boxShadow = "0 0 60px red";
-        statusText.innerText = "❌ Person without ID Card";
-        if (lastState !== "withoutID") {
-          buzzer.currentTime = 0;
-          buzzer.play();
-          logEvent("Without ID Card");
-          lastState = "withoutID";
-        }
-      } else {
-        indicator.style.background = "grey";
-        indicator.style.boxShadow = "0 0 40px #000";
-        statusText.innerText = "Analyzing...";
-      }
-      requestAnimationFrame(detectLoop);
-    }
-  </script>
+    requestAnimationFrame(detectLoop);
+}
+</script>
 </body>
 </html>
